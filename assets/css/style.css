@@ -92,7 +92,6 @@ img{max-width:100%}
 .intro__video{
   position:absolute;inset:0;width:100%;height:100%;
   object-fit:cover;object-position:var(--film-pos) center;
-  transform:scale(1.02);
   opacity:0;transition:opacity .3s ease;
 }
 .intro__video.is-active{opacity:1}
@@ -114,6 +113,12 @@ img{max-width:100%}
 .intro.is-film .intro__name{font-size:clamp(38px,6.4vw,58px)}
 .intro.is-film .intro__enter{margin-top:22px}
 .intro.is-film .intro__hearts .hart{top:82%}
+/* lớp trang trí nặng vô hình sau video: tắt để video 1080p60 không rớt khung */
+.intro.is-film .intro__cosmos,
+.intro.is-film .intro__grain,
+.intro.is-film .intro__inner::before{display:none}
+.intro.is-film .intro__seal::after{animation:none}
+.intro.is-film .intro__name{animation:introRise 1.1s var(--ease) .22s backwards}
 
 .intro__cosmos{
   position:absolute;inset:0;z-index:0;overflow:hidden;
