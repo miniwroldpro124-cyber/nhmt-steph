@@ -21,6 +21,11 @@ window.PROFILE = {
     url: "https://www.tiktok.com/@nhmtienn"
   },
 
+  facebook: {
+    handle: "nguyen.huu.minh.tien.2025",
+    url: "https://www.facebook.com/nguyen.huu.minh.tien.2025"
+  },
+
   music: {
     videoId: "MjE3Yxrv5NY",
     title: "SƠN THUỶ TRÙNG MÂY (VIETZ × WI. Remix)",
@@ -29,12 +34,25 @@ window.PROFILE = {
     autoplayOnEnter: true
   },
 
-  // Video mở màn: 5s đầu (0-5) → chờ ở vòng 10-50s → chạm thì phát 50-55s rồi mở trang.
+  // Video mở màn: 5s đầu (0-5) → chờ ở vòng 10-30s → chạm thì phát 50.4-53.45s rồi mở trang.
   // Ba clip cắt sẵn từ file gốc để không cần tua. Để open.src: "" để dùng cảnh CSS.
+  // srcMobile: bản 720p cho điện thoại / mạng tiết kiệm dữ liệu.
   introFilm: {
-    open:  { src: "assets/video/cyrene-open.mp4",  poster: "assets/video/cyrene-open.jpg" },
-    loop:  { src: "assets/video/cyrene-loop.mp4",  poster: "assets/video/cyrene-loop.jpg" },
-    outro: { src: "assets/video/cyrene-outro.mp4", poster: "assets/video/cyrene-outro.jpg" }
+    open: {
+      src: "assets/video/cyrene-open.mp4?v=15",
+      srcMobile: "assets/video/cyrene-open-720.mp4?v=15",
+      poster: "assets/video/cyrene-open.jpg?v=15"
+    },
+    loop: {
+      src: "assets/video/cyrene-loop.mp4?v=15",
+      srcMobile: "assets/video/cyrene-loop-720.mp4?v=15",
+      poster: "assets/video/cyrene-loop.jpg?v=15"
+    },
+    outro: {
+      src: "assets/video/cyrene-outro.mp4?v=15",
+      srcMobile: "assets/video/cyrene-outro-720.mp4?v=15",
+      poster: "assets/video/cyrene-outro.jpg?v=15"
+    }
   },
 
   counters: {

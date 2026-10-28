@@ -17,6 +17,7 @@
     introAvatar: $('#introAvatar'),
     introDeco: $('#introDeco'),
     displayName: $('#displayName'),
+    brandWord: $('#brandWord'),
     username: $('#username'),
     bio: $('#bio'),
     avatarBtn: $('#avatarBtn'),
@@ -37,6 +38,7 @@
     activityArtist: $('#activityArtist'),
     activityProgress: $('#activityProgress'),
     tiktokLink: $('#tiktokLink'),
+    facebookLink: $('#facebookLink'),
     serverLink: $('#serverLink'),
     serverMeta: $('#serverMeta'),
     contactLink: $('#contactLink'),
@@ -89,6 +91,7 @@
   const pronounEl = $('.identity__meta .meta');
   if (pronounEl) pronounEl.textContent = cfg.discord.pronouns;
   if (els.tiktokLink) els.tiktokLink.href = cfg.tiktok.url;
+  if (els.facebookLink && cfg.facebook?.url) els.facebookLink.href = cfg.facebook.url;
   if (els.serverLink) els.serverLink.href = cfg.server.url;
   if (els.contactLink) els.contactLink.href = `https://discord.com/users/${cfg.discord.id}`;
   const footerLink = $('.card__footer a');
@@ -195,6 +198,20 @@
   };
   const filmVideos = {};
 
+  // Điện thoại / mạng yếu dùng bản 720p, máy tính giữ 1080p.
+  const wantsLightFilm = (() => {
+    const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (conn?.saveData) return true;
+    if (conn?.effectiveType && /(^|[^4])g$/i.test(conn.effectiveType) && conn.effectiveType !== '4g') return true;
+    const coarse = window.matchMedia?.('(pointer:coarse)').matches;
+    const narrow = Math.min(window.innerWidth, window.innerHeight) <= 820;
+    const smallScreen = Math.min(window.screen?.width || 9999, window.screen?.height || 9999) <= 900;
+    const weakCpu = (navigator.hardwareConcurrency || 8) <= 4;
+    return Boolean((coarse && narrow) || (coarse && smallScreen) || (narrow && weakCpu));
+  })();
+
+  const filmSrc = (part) => (wantsLightFilm && part?.srcMobile ? part.srcMobile : part?.src);
+
   function showFilmVideo(name) {
     Object.entries(filmVideos).forEach(([key, video]) => {
       video.classList.toggle('is-active', key === name);
@@ -204,19 +221,61 @@
   function playFilmVideo(video) {
     if (!video) return;
     video.muted = false;
+    video.volume = 1;
     const attempt = video.play();
-    if (attempt && typeof attempt.catch === 'function') {
-      attempt.catch(() => {
-        video.muted = true;
-        const retry = video.play();
-        if (retry && typeof retry.catch === 'function') retry.catch(() => {});
-      });
-    }
+    if (!attempt || typeof attempt.catch !== 'function') return;
+    // Bị chặn tự phát có tiếng: chạy im lặng để hình không đứng.
+    attempt.catch(() => {
+      video.muted = true;
+      const retry = video.play();
+      if (retry && typeof retry.catch === 'function') retry.catch(() => {});
+    });
   }
 
   function pauseFilmVideos(except) {
     Object.values(filmVideos).forEach((video) => {
       if (video && video !== except) video.pause();
+    });
+  }
+
+  function prepFilmVideo(name) {
+    const video = filmVideos[name];
+    const part = film[name];
+    const src = filmSrc(part);
+    if (!video || !src || video.dataset.loaded) return video;
+    video.dataset.loaded = '1';
+    if (part.poster) video.poster = part.poster;
+    video.preload = 'auto';
+    video.src = src;
+    video.load();
+    return video;
+  }
+
+  // Làm nóng decoder của clip outro trong lúc người dùng đang xem vòng lặp:
+  // phát 1 khung ở chế độ muted rồi dừng, để cú chạm sau đó bật lên tức thì.
+  function primeFilmVideo(video) {
+    if (!video || video.dataset.primed) return;
+    video.dataset.primed = '1';
+    video.muted = true;
+    const attempt = video.play();
+    if (!attempt || typeof attempt.then !== 'function') return;
+    attempt.then(() => {
+      const stop = () => {
+        // Người dùng đã chạm trước khi khung làm nóng kịp dừng: outro đang chạy thật,
+        // không được pause/mute nó nữa, nếu không clip cuối sẽ mất tiếng.
+        if (filmPhase === 'outro' || siteOpened) {
+          video.muted = false;
+          return;
+        }
+        video.pause();
+        video.muted = false;
+        try { video.currentTime = 0; } catch { /* best effort */ }
+      };
+      if (typeof video.requestVideoFrameCallback === 'function') video.requestVideoFrameCallback(stop);
+      else window.setTimeout(stop, 120);
+    }).catch(() => {
+      video.muted = false;
+      video.dataset.primed = '';
     });
   }
 
@@ -229,18 +288,29 @@
     filmVideos.open = openVid;
     filmVideos.loop = loopVid;
     filmVideos.outro = outroVid;
-    Object.entries(filmVideos).forEach(([key, video]) => {
-      const part = film[key];
-      if (part.poster) video.poster = part.poster;
-      video.src = part.src;
+    Object.values(filmVideos).forEach((video) => {
       video.addEventListener('playing', () => els.intro.classList.add('is-playing'), { passive: true });
     });
+    // Nạp lần lượt: ưu tiên 5s mở màn, clip lặp và outro tải sau để không giành băng thông.
+    prepFilmVideo('open');
+    openVid.addEventListener('playing', () => prepFilmVideo('loop'), { once: true });
+    loopVid.addEventListener('canplay', () => prepFilmVideo('outro'), { once: true });
     openVid.addEventListener('ended', () => {
       if (filmPhase !== 'open' || siteOpened) return;
-      filmPhase = 'loop';
-      showFilmVideo('loop');
-      playFilmVideo(loopVid);
-      window.setTimeout(() => openVid.pause(), 320);
+      prepFilmVideo('loop');
+      const startLoop = () => {
+        if (filmPhase !== 'open' || siteOpened) return;
+        filmPhase = 'loop';
+        showFilmVideo('loop');
+        playFilmVideo(loopVid);
+        window.setTimeout(() => openVid.pause(), 320);
+        // Vòng lặp đã hiện: nạp + làm nóng outro để cú chạm bật ngay.
+        if (prepFilmVideo('outro')) primeFilmVideo(filmVideos.outro);
+        // Nạp sẵn player nhạc trong lúc khách còn xem vòng lặp.
+        preloadMusic();
+      };
+      if (loopVid.readyState >= 3) startLoop();
+      else loopVid.addEventListener('canplay', startLoop, { once: true });
     });
     outroVid.addEventListener('ended', () => {
       if (filmPhase === 'outro') openSite();
@@ -256,6 +326,17 @@
     filmPhase = 'open';
     showFilmVideo('open');
     playFilmVideo(openVid);
+    // Dự phòng: nếu clip mở màn không phát được (bị chặn/thiếu codec) thì vẫn nạp sẵn player nhạc.
+    window.setTimeout(() => { if (!siteOpened) preloadMusic(); }, 6000);
+
+    // Rời tab thì dừng giải mã, quay lại chạy tiếp để không bị dồn khung.
+    document.addEventListener('visibilitychange', () => {
+      if (siteOpened || !film.active) return;
+      const current = filmVideos[filmPhase];
+      if (!current) return;
+      if (document.hidden) current.pause();
+      else if (filmPhase !== 'outro') playFilmVideo(current);
+    });
   }
   initIntroFilm();
 
@@ -297,23 +378,59 @@
     burstHearts(els.intro);
   }
 
+  // Đổi lớp sang video mới chỉ khi khung hình đầu đã sẵn sàng → không nháy đen, không khựng.
+  function revealWhenPainted(video, reveal) {
+    let done = false;
+    const go = () => {
+      if (done) return;
+      done = true;
+      reveal();
+    };
+    if (typeof video.requestVideoFrameCallback === 'function') {
+      video.requestVideoFrameCallback(go);
+    } else {
+      video.addEventListener('playing', go, { once: true });
+    }
+    window.setTimeout(go, 260);
+  }
+
   function startFilmOutro() {
     if (!film.active || siteOpened || filmPhase === 'outro' || !filmVideos.outro) return false;
     filmPhase = 'outro';
-    kickKiss();
-    bumpView();
-    els.intro.classList.add('is-outro');
-    pauseFilmVideos(filmVideos.outro);
-    const outroVid = filmVideos.outro;
-    showFilmVideo('outro');
-    try { outroVid.currentTime = 0; } catch { /* best effort */ }
-    playFilmVideo(outroVid);
-    const label = els.enterBtn?.querySelector('.intro__enter-text');
-    if (label) label.textContent = 'đang mở trang';
-    if (els.enterBtn) {
-      els.enterBtn.disabled = true;
-      els.enterBtn.setAttribute('aria-label', 'Đang mở trang');
+    const outroVid = prepFilmVideo('outro');
+    pauseFilmVideos(outroVid);
+    // Gọi play() ngay trong cú chạm: nếu chờ 'canplay' thì mất quyền user-gesture
+    // và trình duyệt sẽ chặn tiếng của clip cuối.
+    outroVid.muted = false;
+    outroVid.volume = 1;
+    if (outroVid.currentTime > 0.05) {
+      try { outroVid.currentTime = 0; } catch { /* best effort */ }
     }
+    playFilmVideo(outroVid);
+    revealWhenPainted(outroVid, () => showFilmVideo('outro'));
+    // Một số trình duyệt/thiết bị bỏ qua cờ muted ngay trong khung đầu của cú chạm:
+    // thử bật tiếng lại vài nhịp, nếu vẫn không được thì clip chạy im lặng (hình vẫn đúng).
+    [90, 240, 520].forEach((delay) => {
+      window.setTimeout(() => {
+        if (siteOpened || !outroVid.muted) return;
+        outroVid.muted = false;
+        const attempt = outroVid.play();
+        if (attempt && typeof attempt.catch === 'function') attempt.catch(() => {});
+      }, delay);
+    });
+    // Trang trí dời sang khung sau để cú chạm phát video ngay, không bị DOM/heart chặn.
+    requestAnimationFrame(() => {
+      if (!els.intro) return;
+      kickKiss();
+      bumpView();
+      els.intro.classList.add('is-outro');
+      const label = els.enterBtn?.querySelector('.intro__enter-text');
+      if (label) label.textContent = 'đang mở trang';
+      if (els.enterBtn) {
+        els.enterBtn.disabled = true;
+        els.enterBtn.setAttribute('aria-label', 'Đang mở trang');
+      }
+    });
     clearTimeout(outroTimer);
     outroTimer = window.setTimeout(openSite, 7000);
     return true;
@@ -359,7 +476,11 @@
     entered = true;
     document.body.classList.add('entered');
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-    if (film.active && startFilmOutro()) return;
+    // Outro phải nhận quyền user-gesture trước: playVideo() của iframe YouTube
+    // cũng tiêu thụ activation và sẽ làm clip cuối bị chặn tiếng nếu chạy trước.
+    const startedFilm = film.active && startFilmOutro();
+    armMusic(true);
+    if (startedFilm) return;
     kickKiss();
     bumpView();
     openSite({ kissDelay: true });
@@ -371,11 +492,19 @@
   }
 
   if (els.intro) {
-    els.intro.addEventListener('click', activateIntro);
+    // pointerdown để chạm trên điện thoại mở ngay, không chờ 300ms của click.
+    if (window.PointerEvent) {
+      els.intro.addEventListener('pointerdown', (event) => {
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
+        activateIntro();
+      }, { passive: true });
+    } else {
+      els.intro.addEventListener('click', activateIntro);
+    }
     document.addEventListener('keydown', (event) => {
-      if (!entered && (event.key === 'Enter' || event.key === ' ')) {
+      if (!entered && (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar')) {
         event.preventDefault();
-        enter();
+        activateIntro();
       }
     });
   }
@@ -452,6 +581,10 @@
     const user = d.username || FALLBACK.username;
 
     els.displayName.textContent = name;
+    if (els.brandWord) {
+      els.brandWord.textContent = name;
+      els.brandWord.dataset.word = name;
+    }
     els.username.textContent = `@${user}`;
     if (els.introName) els.introName.textContent = name;
     document.title = `${name} ✦ @${user}`;
@@ -659,6 +792,7 @@
     duration: 0
   };
   let ytApiState = 'idle';
+  let musicStarted = false;
 
   function loadYouTubeApi() {
     if (ytApiState === 'loading' || ytApiState === 'ready') return;
@@ -673,15 +807,57 @@
     document.head.appendChild(script);
   }
 
+  // Nạp sẵn player trong lúc khách đang xem màn mở đầu (không phát), để lúc mở trang
+  // nhạc bật ngay thay vì chờ tải API + iframe vài giây.
+  function preloadMusic() {
+    if (musicStarted || ytApiState !== 'idle') return;
+    loadYouTubeApi();
+  }
+
+  // Cú chạm mở trang cũng là cơ hội xin quyền phát nhạc: cho player chạy sẵn ở chế độ
+  // muted (không đè tiếng clip outro), rồi bật tiếng + tua về 0 khi trang mở xong.
+  function armMusic(gesture) {
+    if (!cfg.music.autoplayOnEnter || musicStarted) return;
+    music.pendingAutoplay = true;
+    if (!music.ready) { loadYouTubeApi(); return; }
+    if (!gesture) return;
+    try {
+      music.player.mute();
+      music.player.playVideo();
+    } catch (_) { /* best effort */ }
+  }
+
   function startMusic() {
     if (!cfg.music.autoplayOnEnter) return;
+    musicStarted = true;
+    music.pendingAutoplay = false;
     if (music.ready) {
-      music.player.setVolume(initialVolume);
-      music.player.playVideo();
+      playMusicWithSound();
       return;
     }
     music.pendingAutoplay = true;
     loadYouTubeApi();
+  }
+
+  // Bật tiếng + tua về 0 và kiểm tra lại: iframe YouTube đôi khi nhận playVideo()
+  // nhưng vẫn ở trạng thái muted, khi đó bấm unmute thêm lần nữa.
+  function playMusicWithSound() {
+    const player = music.player;
+    if (!player) return;
+    try {
+      player.unMute();
+      player.setVolume(initialVolume);
+      player.seekTo(0, true);
+      player.playVideo();
+    } catch (_) { return; }
+    window.setTimeout(() => {
+      try {
+        if (player.isMuted && player.isMuted()) {
+          player.unMute();
+          player.setVolume(initialVolume);
+        }
+      } catch (_) { /* best effort */ }
+    }, 600);
   }
 
   window.onYouTubeIframeAPIReady = () => {
@@ -708,19 +884,31 @@
           els.musicState.textContent = 'Sẵn sàng';
           event.target.setVolume(initialVolume);
           updateMusicProgress();
-          if (music.pendingAutoplay && entered) {
-            music.pendingAutoplay = false;
-            event.target.playVideo();
+          // Trang đã mở xong trong lúc player còn đang tải: phát có tiếng từ đầu.
+          if (musicStarted) {
+            playMusicWithSound();
+            return;
+          }
+          // Còn ở màn mở đầu: chạy nền ở chế độ muted để lúc mở trang bật tiếng là có ngay.
+          if (music.pendingAutoplay) {
+            try {
+              event.target.mute();
+              event.target.playVideo();
+            } catch (_) { /* best effort */ }
           }
         },
         onStateChange(event) {
           const state = window.YT.PlayerState;
+          const wasPlaying = music.playing;
           music.playing = event.data === state.PLAYING;
           els.music.classList.toggle('is-playing', music.playing);
           els.playBtn.setAttribute('aria-label', music.playing ? 'Tạm dừng' : 'Phát nhạc');
           if (music.playing) {
             music.duration = event.target.getDuration() || music.duration;
-            els.musicState.textContent = 'Đang phát';
+            els.musicState.textContent = musicStarted ? 'Đang phát' : 'Sẵn sàng';
+            // Player chạy nền ở chế độ muted: hiện UI như đang phát nhưng giữ im lặng
+            // cho tới khi màn mở đầu đóng hẳn.
+            if (!musicStarted && !wasPlaying) event.target.mute();
           } else if (event.data === state.PAUSED) {
             els.musicState.textContent = 'Tạm dừng';
           } else if (event.data === state.ENDED) {
@@ -820,6 +1008,7 @@
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     let width = 0, height = 0, dots = [];
+    let lastDraw = 0;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
     const makeDot = () => ({
@@ -842,6 +1031,12 @@
     }
 
     function draw() {
+      requestAnimationFrame(draw);
+      if (!siteOpened || document.hidden) return;
+      // Hạt trôi rất chậm: 30fps là đủ, tiết kiệm GPU cho hiệu ứng nghiêng bảng.
+      const now = performance.now();
+      if (now - lastDraw < 33) return;
+      lastDraw = now;
       ctx.clearRect(0, 0, width, height);
       for (const dot of dots) {
         dot.y += dot.vy;
@@ -857,7 +1052,6 @@
         ctx.arc(dot.x, dot.y, dot.r, 0, Math.PI * 2);
         ctx.fill();
       }
-      requestAnimationFrame(draw);
     }
 
     window.addEventListener('resize', resize);
@@ -874,6 +1068,7 @@
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     let width = 0, height = 0, last = 0;
     const parts = [];
+    let dirty = false;
 
     function resize() {
       width = window.innerWidth;
@@ -904,6 +1099,17 @@
     }, { passive: true });
 
     function draw() {
+      requestAnimationFrame(draw);
+      if (!siteOpened || document.hidden) return;
+      // Không có hạt thì bỏ luôn lệnh xoá canvas toàn màn hình (~2-4ms/frame).
+      if (!parts.length) {
+        if (dirty) {
+          ctx.clearRect(0, 0, width, height);
+          dirty = false;
+        }
+        return;
+      }
+      dirty = true;
       ctx.clearRect(0, 0, width, height);
       for (let i = parts.length - 1; i >= 0; i--) {
         const p = parts[i];
@@ -936,11 +1142,81 @@
         ctx.fill();
         ctx.restore();
       }
-      requestAnimationFrame(draw);
     }
     draw();
   }
 
+  /* ---------------- card tilt theo con trỏ ---------------- */
+
+  function initTilt() {
+    if (reduceMotion) return;
+    if (!window.matchMedia?.('(hover:hover) and (pointer:fine)').matches) return;
+    const card = $('#card');
+    const brand = $('.brand');
+    if (!card) return;
+
+    const MAX_X = 9, MAX_Y = 12;
+    let enabled = false;
+    let lastAt = 0;
+    let px = 0, py = 0;
+
+    // Bật sau khi cardIn xong rồi bỏ animation để transform của tilt không bị keyframes đè.
+    const arm = () => window.setTimeout(() => {
+      if (!siteOpened || reduceMotion) return;
+      card.style.animation = 'none';
+      enabled = true;
+      card.classList.add('is-tilt');
+      brand?.classList.add('is-tilt');
+    }, 1750);
+
+    if (siteOpened) arm();
+    else {
+      const waitOpen = setInterval(() => {
+        if (!siteOpened) return;
+        clearInterval(waitOpen);
+        arm();
+      }, 260);
+    }
+
+    const apply = () => {
+      if (!enabled) return;
+      const nx = (px / window.innerWidth) * 2 - 1;
+      const ny = (py / window.innerHeight) * 2 - 1;
+      const edgeX = Math.sign(nx) * Math.pow(Math.abs(nx), 1.55);
+      const edgeY = Math.sign(ny) * Math.pow(Math.abs(ny), 1.55);
+      card.style.setProperty('--tilt-x', `${(-edgeY * MAX_X).toFixed(2)}deg`);
+      card.style.setProperty('--tilt-y', `${(edgeX * MAX_Y).toFixed(2)}deg`);
+      if (brand) {
+        brand.style.setProperty('--brand-x', `${(edgeX * -9).toFixed(1)}px`);
+        brand.style.setProperty('--brand-y', `${(edgeY * -5).toFixed(1)}px`);
+      }
+    };
+
+    window.addEventListener('pointermove', (event) => {
+      if (!enabled || (event.pointerType && event.pointerType !== 'mouse')) return;
+      px = event.clientX;
+      py = event.clientY;
+      card.classList.add('is-tracking');
+      const now = performance.now();
+      if (now - lastAt < 16) return;
+      lastAt = now;
+      apply();
+    }, { passive: true });
+
+    const settle = () => {
+      if (!enabled) return;
+      card.classList.remove('is-tracking');
+      card.style.setProperty('--tilt-x', '0deg');
+      card.style.setProperty('--tilt-y', '0deg');
+      brand?.style.setProperty('--brand-x', '0px');
+      brand?.style.setProperty('--brand-y', '0px');
+    };
+    document.addEventListener('pointerleave', settle);
+    window.addEventListener('blur', settle);
+    window.addEventListener('scroll', settle, { passive: true });
+  }
+
   initAmbient();
   initSparkles();
+  initTilt();
 })();
