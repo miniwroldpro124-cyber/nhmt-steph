@@ -13,7 +13,6 @@
   const els = {
     intro: $('#intro'),
     enterBtn: $('#enterBtn'),
-    typeText: $('#typeText'),
     introName: $('#introName'),
     introAvatar: $('#introAvatar'),
     introDeco: $('#introDeco'),
@@ -38,9 +37,14 @@
     activityArtist: $('#activityArtist'),
     activityProgress: $('#activityProgress'),
     tiktokLink: $('#tiktokLink'),
-    ytLink: $('#ytLink'),
     serverLink: $('#serverLink'),
     serverMeta: $('#serverMeta'),
+    contactLink: $('#contactLink'),
+    viewCount: $('#viewCount'),
+    starBtn: $('#starBtn'),
+    starCount: $('#starCount'),
+    likeBtn: $('#likeBtn'),
+    likeCount: $('#likeCount'),
     music: $('#music'),
     trackArt: $('#trackArt'),
     musicState: $('#musicState'),
@@ -85,8 +89,8 @@
   const pronounEl = $('.identity__meta .meta');
   if (pronounEl) pronounEl.textContent = cfg.discord.pronouns;
   if (els.tiktokLink) els.tiktokLink.href = cfg.tiktok.url;
-  if (els.ytLink) els.ytLink.href = cfg.music.url;
   if (els.serverLink) els.serverLink.href = cfg.server.url;
+  if (els.contactLink) els.contactLink.href = `https://discord.com/users/${cfg.discord.id}`;
   const footerLink = $('.card__footer a');
   if (footerLink) footerLink.href = cfg.server.url;
   if (els.year) els.year.textContent = new Date().getFullYear();
@@ -100,36 +104,254 @@
     els.volume.value = initialVolume;
   }
 
+  /* ---------------- counters (abacus) ---------------- */
+
+  const COUNTER_API = 'https://abacus.jasoncameron.dev';
+  const COUNTER_NS = cfg.counters.namespace;
+  const STAT_CACHE_KEY = 'nhm-stats-v1';
+  const stats = { views: 0, stars: 0, likes: 0 };
+  const statNums = { views: els.viewCount, stars: els.starCount, likes: els.likeCount };
+  const fmtCount = (n) => Math.max(0, Math.round(Number(n) || 0)).toLocaleString('vi-VN');
+
+  const readStore = (key) => {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) { return null; }
+  };
+  const hasFlag = (key) => {
+    try { return localStorage.getItem(key) === '1'; } catch (_) { return false; }
+  };
+
+  function setStat(key, value) {
+    if (!(key in stats)) return;
+    stats[key] = Math.max(0, Math.round(Number(value) || 0));
+    if (statNums[key]) statNums[key].textContent = fmtCount(stats[key]);
+    try { localStorage.setItem(STAT_CACHE_KEY, JSON.stringify(stats)); } catch (_) { /* noop */ }
+  }
+
+  async function fetchStat(key) {
+    const res = await fetch(`${COUNTER_API}/get/${COUNTER_NS}/${key}`, { cache: 'no-store' });
+    if (res.status === 404) return 0;
+    if (!res.ok) throw new Error(`stats ${res.status}`);
+    return (await res.json()).value;
+  }
+  async function bumpStat(key) {
+    const res = await fetch(`${COUNTER_API}/hit/${COUNTER_NS}/${key}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`stats ${res.status}`);
+    return (await res.json()).value;
+  }
+
+  const cachedStats = readStore(STAT_CACHE_KEY);
+  Object.keys(stats).forEach((key) => {
+    if (cachedStats && Number.isFinite(Number(cachedStats[key]))) {
+      stats[key] = Math.max(0, Number(cachedStats[key]));
+    }
+    if (statNums[key]) statNums[key].textContent = fmtCount(stats[key]);
+    fetchStat(key).then((value) => setStat(key, value)).catch(() => { /* keep cached */ });
+  });
+
+  const STAT_ACTIONS = [
+    { key: 'stars', btn: els.starBtn, flag: 'nhm-starred', done: 'Bạn đã thả sao rồi ✦', thanks: 'Cảm ơn bạn đã thả sao ✦' },
+    { key: 'likes', btn: els.likeBtn, flag: 'nhm-liked', done: 'Bạn đã thả tim rồi ✦', thanks: 'Cảm ơn bạn đã thả tim ✦' }
+  ];
+
+  STAT_ACTIONS.forEach(({ key, btn, flag, done, thanks }) => {
+    if (!btn) return;
+    const sync = () => btn.setAttribute('aria-pressed', String(hasFlag(flag)));
+    sync();
+    btn.addEventListener('click', async () => {
+      if (hasFlag(flag)) { toast(done); return; }
+      btn.disabled = true;
+      try {
+        setStat(key, await bumpStat(key));
+        try { localStorage.setItem(flag, '1'); } catch (_) { /* noop */ }
+        sync();
+        btn.classList.add('is-bump');
+        setTimeout(() => btn.classList.remove('is-bump'), 600);
+        toast(thanks);
+      } catch (_) {
+        toast('Kết nối hơi chậm, thử lại nhé ✦');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+
   /* ---------------- intro ---------------- */
 
-  const phrases = ['Im from Việt Nam', 'Furina main', 'Honkai: Star Rail', '@steph.py'];
   let entered = false;
+  let siteOpened = false;
+  let filmPhase = 'idle';
+  let outroTimer = null;
+  let viewsBumped = false;
 
-  function typewriter() {
-    if (reduceMotion || !els.typeText) {
-      if (els.typeText) els.typeText.textContent = phrases[0];
-      return;
+  const filmCfg = cfg.introFilm || {};
+  const film = {
+    active: Boolean(filmCfg.open?.src) && !reduceMotion,
+    open: filmCfg.open || {},
+    loop: filmCfg.loop || {},
+    outro: filmCfg.outro || {}
+  };
+  const filmVideos = {};
+
+  function showFilmVideo(name) {
+    Object.entries(filmVideos).forEach(([key, video]) => {
+      video.classList.toggle('is-active', key === name);
+    });
+  }
+
+  function playFilmVideo(video) {
+    if (!video) return;
+    video.muted = false;
+    const attempt = video.play();
+    if (attempt && typeof attempt.catch === 'function') {
+      attempt.catch(() => {
+        video.muted = true;
+        const retry = video.play();
+        if (retry && typeof retry.catch === 'function') retry.catch(() => {});
+      });
     }
-    let word = 0, chars = 0, deleting = false;
-    const step = () => {
-      if (entered) return;
-      const phrase = phrases[word];
-      chars += deleting ? -1 : 1;
-      els.typeText.textContent = phrase.slice(0, chars);
-      if (!deleting && chars === phrase.length) {
-        deleting = true;
-        setTimeout(step, 1700);
-        return;
+  }
+
+  function pauseFilmVideos(except) {
+    Object.values(filmVideos).forEach((video) => {
+      if (video && video !== except) video.pause();
+    });
+  }
+
+  function initIntroFilm() {
+    if (!film.active || !els.intro) return;
+    const openVid = document.getElementById('introOpen');
+    const loopVid = document.getElementById('introLoop');
+    const outroVid = document.getElementById('introOutro');
+    if (!openVid || !loopVid || !outroVid) { film.active = false; return; }
+    filmVideos.open = openVid;
+    filmVideos.loop = loopVid;
+    filmVideos.outro = outroVid;
+    Object.entries(filmVideos).forEach(([key, video]) => {
+      const part = film[key];
+      if (part.poster) video.poster = part.poster;
+      video.src = part.src;
+      video.addEventListener('playing', () => els.intro.classList.add('is-playing'), { passive: true });
+    });
+    openVid.addEventListener('ended', () => {
+      if (filmPhase !== 'open' || siteOpened) return;
+      filmPhase = 'loop';
+      showFilmVideo('loop');
+      playFilmVideo(loopVid);
+      window.setTimeout(() => openVid.pause(), 320);
+    });
+    outroVid.addEventListener('ended', () => {
+      if (filmPhase === 'outro') openSite();
+    });
+    openVid.addEventListener('error', () => {
+      film.active = false;
+      filmPhase = 'off';
+      els.intro?.classList.remove('is-film');
+      openVid.removeAttribute('src');
+      openVid.load();
+    }, { once: true });
+    els.intro.classList.add('is-film');
+    filmPhase = 'open';
+    showFilmVideo('open');
+    playFilmVideo(openVid);
+  }
+  initIntroFilm();
+
+  function burstHearts(intro) {
+    if (reduceMotion) return;
+    const layer = intro.querySelector('.intro__hearts');
+    if (!layer) return;
+    const total = 18;
+    for (let i = 0; i < total; i += 1) {
+      const hart = document.createElement('span');
+      hart.className = 'hart';
+      const angle = (-168 + (i / (total - 1)) * 156 + (Math.random() * 12 - 6)) * (Math.PI / 180);
+      const dist = 110 + Math.random() * 160;
+      const size = 8 + Math.random() * 11;
+      const hue = Math.random() < 0.14 ? 195 + Math.random() * 20 : (Math.random() < 0.3 ? 278 + Math.random() * 22 : 322 + Math.random() * 30);
+      hart.style.width = `${size}px`;
+      hart.style.height = `${size}px`;
+      hart.style.setProperty('--dx', `${Math.cos(angle) * dist}px`);
+      hart.style.setProperty('--dy', `${Math.sin(angle) * dist}px`);
+      hart.style.setProperty('--rot', `${Math.random() * 90 - 45}deg`);
+      hart.style.setProperty('--sc', (0.7 + Math.random() * 0.9).toFixed(2));
+      hart.style.setProperty('--dur', `${(1.1 + Math.random() * 0.7).toFixed(2)}s`);
+      hart.style.setProperty('--delay', `${(Math.random() * 0.18).toFixed(2)}s`);
+      hart.style.setProperty('--hue', hue.toFixed(0));
+      hart.addEventListener('animationend', () => hart.remove(), { once: true });
+      layer.appendChild(hart);
+    }
+  }
+
+  function bumpView() {
+    if (viewsBumped) return;
+    viewsBumped = true;
+    bumpStat('views').then((value) => setStat('views', value)).catch(() => { /* best effort */ });
+  }
+
+  function kickKiss() {
+    if (!els.intro) return;
+    els.intro.classList.add('is-kissing');
+    burstHearts(els.intro);
+  }
+
+  function startFilmOutro() {
+    if (!film.active || siteOpened || filmPhase === 'outro' || !filmVideos.outro) return false;
+    filmPhase = 'outro';
+    kickKiss();
+    bumpView();
+    els.intro.classList.add('is-outro');
+    pauseFilmVideos(filmVideos.outro);
+    const outroVid = filmVideos.outro;
+    showFilmVideo('outro');
+    try { outroVid.currentTime = 0; } catch { /* best effort */ }
+    playFilmVideo(outroVid);
+    const label = els.enterBtn?.querySelector('.intro__enter-text');
+    if (label) label.textContent = 'đang mở trang';
+    if (els.enterBtn) {
+      els.enterBtn.disabled = true;
+      els.enterBtn.setAttribute('aria-label', 'Đang mở trang');
+    }
+    clearTimeout(outroTimer);
+    outroTimer = window.setTimeout(openSite, 7000);
+    return true;
+  }
+
+  function openSite(options = {}) {
+    if (siteOpened) return;
+    siteOpened = true;
+    clearTimeout(outroTimer);
+    pauseFilmVideos();
+    if (filmVideos.outro) filmVideos.outro.muted = true;
+    const intro = els.intro;
+    const stage = $('.stage');
+    if (stage) {
+      stage.inert = false;
+      stage.removeAttribute('inert');
+    }
+    if (!intro) { startMusic(); return; }
+
+    const kissDelay = options.kissDelay && !reduceMotion ? 340 : 0;
+    const outro = reduceMotion ? 160 : (options.quick || filmPhase === 'outro' ? 520 : 1500);
+    window.setTimeout(() => {
+      intro.classList.add('is-opening');
+      window.setTimeout(() => {
+        intro.classList.add('is-hidden');
+        window.setTimeout(() => {
+          intro.remove();
+          startMusic();
+        }, 520);
+      }, outro);
+    }, kissDelay);
+    window.setTimeout(() => {
+      const card = $('#card');
+      if (card) {
+        card.setAttribute('tabindex', '-1');
+        card.focus({ preventScroll: true });
       }
-      if (deleting && chars === 0) {
-        deleting = false;
-        word = (word + 1) % phrases.length;
-        setTimeout(step, 320);
-        return;
-      }
-      setTimeout(step, deleting ? 30 : 62);
-    };
-    step();
+    }, kissDelay + outro + 420);
   }
 
   function enter() {
@@ -137,22 +359,19 @@
     entered = true;
     document.body.classList.add('entered');
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-    if (els.intro) {
-      els.intro.classList.add('is-hidden');
-      setTimeout(() => els.intro.remove(), 1000);
-    }
-    window.setTimeout(() => {
-      const card = $('#card');
-      if (card) {
-        card.setAttribute('tabindex', '-1');
-        card.focus({ preventScroll: true });
-      }
-    }, 700);
-    startMusic();
+    if (film.active && startFilmOutro()) return;
+    kickKiss();
+    bumpView();
+    openSite({ kissDelay: true });
+  }
+
+  function activateIntro() {
+    if (siteOpened) return;
+    if (!entered) enter();
   }
 
   if (els.intro) {
-    els.intro.addEventListener('click', enter);
+    els.intro.addEventListener('click', activateIntro);
     document.addEventListener('keydown', (event) => {
       if (!entered && (event.key === 'Enter' || event.key === ' ')) {
         event.preventDefault();
@@ -160,7 +379,6 @@
       }
     });
   }
-  typewriter();
 
   /* ---------------- discord profile sync (japi.rest) ---------------- */
 
@@ -186,19 +404,14 @@
       : null
   );
 
-  const ICON = {
-    nitro: '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3.4 18.6 9 12 20.6 5.4 9 12 3.4Z"/><path d="M5.4 9h13.2M12 3.4v17.2"/></svg>',
-    balance: '<svg viewBox="0 0 24 24" fill="#fff"><path d="M12 3 18 13H6L12 3Z"/><path d="M5.4 14h5.2L8 20.4 5.4 14Z"/><path d="M13.4 14h5.2L16 20.4 13.4 14Z"/></svg>',
-    early: '<svg viewBox="0 0 24 24" fill="#fff"><path d="M12 3l2.4 5.9 6.3.5-4.8 4.1 1.5 6.1L12 16.5 6.6 19.6l1.5-6.1L3.3 9.4l6.3-.5L12 3z"/></svg>',
-    calendar: '<svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3.5v3M16 3.5v3M3.5 10h17"/></svg>'
-  };
+  const BADGE_ICON_PATH = 'assets/img/';
 
   const BADGES = {
-    NITRO: { label: 'Nitro', cls: 'nitro', svg: ICON.nitro },
-    HOUSE_BALANCE: { label: 'HypeSquad Balance', cls: 'balance', svg: ICON.balance },
-    HOUSE_BRAVERY: { label: 'HypeSquad Bravery', cls: 'bravery', svg: ICON.balance },
-    HOUSE_BRILLIANCE: { label: 'HypeSquad Brilliance', cls: 'brilliance', svg: ICON.balance },
-    PREMIUM_EARLY_SUPPORTER: { label: 'Early Supporter', cls: 'early', svg: ICON.early }
+    NITRO: { label: 'Nitro', icon: 'badge-nitro.png' },
+    HOUSE_BALANCE: { label: 'HypeSquad Balance', icon: 'badge-balance.png' },
+    HOUSE_BRAVERY: { label: 'HypeSquad Bravery', icon: 'badge-bravery.png' },
+    HOUSE_BRILLIANCE: { label: 'HypeSquad Brilliance', icon: 'badge-brilliance.png' },
+    PREMIUM_EARLY_SUPPORTER: { label: 'Early Supporter', icon: 'badge-early.png' }
   };
 
   const FLAG_BITS = [
@@ -216,35 +429,22 @@
 
   const BADGE_ORDER = ['NITRO', 'HOUSE_BRAVERY', 'HOUSE_BRILLIANCE', 'HOUSE_BALANCE', 'PREMIUM_EARLY_SUPPORTER'];
 
-  function renderBadges(flags, created, clan) {
+  function renderBadges(flags) {
     const unique = [...new Set((flags || []).filter((f) => BADGES[f]))]
       .sort((a, b) => BADGE_ORDER.indexOf(a) - BADGE_ORDER.indexOf(b));
 
     els.badgeInline.innerHTML = unique.map((key) => {
       const b = BADGES[key];
-      return `<span class="badge-inline badge-inline--${b.cls}" title="${b.label}">${b.svg}</span>`;
+      return `<img class="badge-inline" src="${BADGE_ICON_PATH}${b.icon}" alt="${b.label}" title="${b.label}">`;
     }).join('');
 
     const chips = unique.map((key) => {
       const b = BADGES[key];
-      return `<span class="chip" title="${b.label}"><span class="chip__ico chip__ico--${b.cls}">${b.svg}</span>${b.label}</span>`;
+      return `<span class="chip" title="${b.label}"><img class="chip__badge" src="${BADGE_ICON_PATH}${b.icon}" alt="">${b.label}</span>`;
     });
-
-    if (clan?.tag) {
-      const src = clanBadgeUrl(clan) || FALLBACK.clan.badge;
-      chips.push(`<span class="chip" title="Clan ${clan.tag}"><img src="${src}" alt="">${clan.tag}</span>`);
-    }
-    if (created) {
-      const date = new Date(created);
-      const label = `${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
-      chips.push(`<span class="chip chip--plain" title="Ngày tạo tài khoản Discord">${ICON.calendar}Từ ${label}</span>`);
-    }
-    if (!chips.length) chips.push('<span class="chip chip--plain">Discord</span>');
+    if (!chips.length) chips.push('<span class="chip chip--plain">Chưa có huy hiệu</span>');
 
     els.badgeList.innerHTML = chips.join('');
-    els.badgeList.querySelectorAll('img').forEach((img) => {
-      img.onerror = () => { img.onerror = null; img.src = FALLBACK.clan.badge; };
-    });
   }
 
   function applyProfile(d) {
@@ -301,7 +501,7 @@
       els.clanChip.hidden = true;
     }
 
-    renderBadges(flagsToArray(d), d.createdTimestamp, clan);
+    renderBadges(flagsToArray(d));
 
     window.PROFILE_STATE = { loaded: true, name, user };
   }
@@ -330,7 +530,7 @@
     }
   }
 
-  renderBadges(['NITRO', 'HOUSE_BALANCE'], null, { tag: FALLBACK.clan.tag });
+  renderBadges(['NITRO', 'HOUSE_BALANCE']);
   readCache();
   loadProfile();
   setInterval(loadProfile, Math.max(1, cfg.discord.refreshMinutes) * 60_000);
@@ -458,18 +658,34 @@
     pendingAutoplay: false,
     duration: 0
   };
+  let ytApiState = 'idle';
+
+  function loadYouTubeApi() {
+    if (ytApiState === 'loading' || ytApiState === 'ready') return;
+    ytApiState = 'loading';
+    els.musicState.textContent = 'Đang tải';
+    const script = document.createElement('script');
+    script.src = 'https://www.youtube.com/iframe_api';
+    script.onerror = () => {
+      ytApiState = 'error';
+      els.musicState.textContent = 'Không tải được';
+    };
+    document.head.appendChild(script);
+  }
 
   function startMusic() {
     if (!cfg.music.autoplayOnEnter) return;
     if (music.ready) {
       music.player.setVolume(initialVolume);
       music.player.playVideo();
-    } else {
-      music.pendingAutoplay = true;
+      return;
     }
+    music.pendingAutoplay = true;
+    loadYouTubeApi();
   }
 
   window.onYouTubeIframeAPIReady = () => {
+    ytApiState = 'ready';
     const origin = /^https?:$/.test(location.protocol) ? location.origin : undefined;
     music.player = new window.YT.Player('ytPlayer', {
       width: 180,
@@ -489,6 +705,7 @@
         onReady(event) {
           music.ready = true;
           music.duration = event.target.getDuration() || 0;
+          els.musicState.textContent = 'Sẵn sàng';
           event.target.setVolume(initialVolume);
           updateMusicProgress();
           if (music.pendingAutoplay && entered) {
@@ -514,14 +731,15 @@
     });
   };
 
-  const ytScript = document.createElement('script');
-  ytScript.src = 'https://www.youtube.com/iframe_api';
-  ytScript.onerror = () => { els.musicState.textContent = 'Không tải được'; };
-  document.head.appendChild(ytScript);
-
   els.playBtn.addEventListener('click', () => {
     if (!music.ready) {
-      toast('Nhạc đang tải, thử lại sau nhé ✦');
+      if (ytApiState === 'error') {
+        toast('Nhạc đang lỗi, tải lại trang nhé ✦');
+        return;
+      }
+      music.pendingAutoplay = true;
+      loadYouTubeApi();
+      toast('Đang tải nhạc…');
       return;
     }
     if (music.playing) music.player.pauseVideo();
