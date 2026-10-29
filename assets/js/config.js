@@ -45,25 +45,25 @@ window.PROFILE = {
   // srcPortrait: bản 9:16 cho điện thoại cầm dọc, để cover không cắt mất nhân vật.
   introFilm: {
     open: {
-      src: "assets/video/cyrene-open.mp4?v=27",
-      srcMobile: "assets/video/cyrene-open-720.mp4?v=27",
-      srcPortrait: "assets/video/cyrene-open-portrait.mp4?v=27",
-      poster: "assets/video/cyrene-open.jpg?v=27",
-      posterPortrait: "assets/video/cyrene-open-portrait.jpg?v=27"
+      src: "assets/video/cyrene-open.mp4?v=28",
+      srcMobile: "assets/video/cyrene-open-720.mp4?v=28",
+      srcPortrait: "assets/video/cyrene-open-portrait.mp4?v=28",
+      poster: "assets/video/cyrene-open.jpg?v=28",
+      posterPortrait: "assets/video/cyrene-open-portrait.jpg?v=28"
     },
     loop: {
-      src: "assets/video/cyrene-loop.mp4?v=27",
-      srcMobile: "assets/video/cyrene-loop-720.mp4?v=27",
-      srcPortrait: "assets/video/cyrene-loop-portrait.mp4?v=27",
-      poster: "assets/video/cyrene-loop.jpg?v=27",
-      posterPortrait: "assets/video/cyrene-loop-portrait.jpg?v=27"
+      src: "assets/video/cyrene-loop.mp4?v=28",
+      srcMobile: "assets/video/cyrene-loop-720.mp4?v=28",
+      srcPortrait: "assets/video/cyrene-loop-portrait.mp4?v=28",
+      poster: "assets/video/cyrene-loop.jpg?v=28",
+      posterPortrait: "assets/video/cyrene-loop-portrait.jpg?v=28"
     },
     outro: {
-      src: "assets/video/cyrene-outro.mp4?v=27",
-      srcMobile: "assets/video/cyrene-outro-720.mp4?v=27",
-      srcPortrait: "assets/video/cyrene-outro-portrait.mp4?v=27",
-      poster: "assets/video/cyrene-outro.jpg?v=27",
-      posterPortrait: "assets/video/cyrene-outro-portrait.jpg?v=27"
+      src: "assets/video/cyrene-outro.mp4?v=28",
+      srcMobile: "assets/video/cyrene-outro-720.mp4?v=28",
+      srcPortrait: "assets/video/cyrene-outro-portrait.mp4?v=28",
+      poster: "assets/video/cyrene-outro.jpg?v=28",
+      posterPortrait: "assets/video/cyrene-outro-portrait.jpg?v=28"
     }
   },
 

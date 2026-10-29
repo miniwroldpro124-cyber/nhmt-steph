@@ -124,27 +124,6 @@ button,a,.intro,.stat,.link-row,.music__play{
 }
 .intro.is-film .intro__veil{opacity:1}
 .intro.is-film.is-playing .intro__veil{opacity:.8}
-
-/* Đoạn cuối kết ở đỉnh flash trắng — đo khung cuối được xám trung tính (~187,183,188).
-   Để nguyên thì cú phai sang nền #08050f đi ngang qua một mảng xám lạnh, lạc hẳn tông
-   tím/hồng của trang. Lớp này phủ lên giây cuối và gần như đặc (alpha .9 → 1) để khung
-   xám không hắt lên: quầng hồng pha lê ở giữa giữ độ chói của cú flash, lan ra tím
-   oải hương, rồi lắng về tím than #1a1030 ở rìa — cùng hướng với quầng sáng của
-   .bg__glow. Lúc intro mờ đi, khung hình đã sẵn đúng tông nền hồ sơ nên mối nối liền. */
-.intro__wash{
-  position:absolute;inset:0;z-index:3;pointer-events:none;opacity:0;
-  background:radial-gradient(84% 74% at 50% 44%,
-    rgba(255,238,250,.94) 0%,
-    rgba(250,214,248,.96) 24%,
-    rgba(214,166,235,.97) 48%,
-    rgba(139,98,193,.98) 70%,
-    rgba(63,38,96,.99) 88%,
-    #1a1030 100%);
-  transition:opacity .5s var(--ease);
-}
-.intro.is-settling .intro__wash{opacity:1}
-/* Đã bị lớp vá phủ kín: bỏ hẳn lớp video khỏi khâu vẽ để animation mở bảng có trọn GPU. */
-.intro.is-settling .intro__film{opacity:0;transition:opacity .3s ease .4s}
 .intro.is-film .intro__aurora,
 .intro.is-film .intro__aura,
 .intro.is-film .intro__ring{display:none}

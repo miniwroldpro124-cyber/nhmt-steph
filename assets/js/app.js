@@ -570,35 +570,7 @@
       outroTimer = window.setTimeout(watchOutroEnd, wait);
     };
     outroTimer = window.setTimeout(watchOutroEnd, 1500);
-    // Nửa giây cuối clip là cú flash trắng đang chói dần. Nhuộm màu hồ sơ vào đúng
-    // lúc đó để cả đoạn sáng lên đã là hồng–tím, chứ không phải một khung xám lạnh
-    // hiện ra rồi mới đổi màu ở khung cuối cùng.
-    // Mốc chặn theo đồng hồ thật: clip bị treo giữa chừng thì vòng này vẫn phải dừng,
-    // và openSite() sẽ tự phủ lớp vá nên không cần nó nữa.
-    const tintDeadline = performance.now() + 12000;
-    const tintTail = () => {
-      if (siteOpened || performance.now() > tintDeadline) return;
-      const dur = Number.isFinite(outroVid.duration) && outroVid.duration > 0
-        ? outroVid.duration
-        : 4.5;
-      if (outroVid.paused || dur - outroVid.currentTime > 1) {
-        window.requestAnimationFrame(tintTail);
-        return;
-      }
-      settleFilm(els.intro);
-    };
-    window.requestAnimationFrame(tintTail);
     return true;
-  }
-
-  // Đoạn cuối kết ở đỉnh flash trắng — đo khung cuối được xám trung tính (~187,183,188).
-  // Phủ lớp vá nhuộm màu hồ sơ lên đúng lúc flash đang chói nhất, để cú phai sang nền
-  // tím của trang không còn đi qua một mảng xám lạnh.
-  // Chỉ dùng khi outro video thật sự chạy: màn mở đầu CSS vốn đã đúng tông, phủ lên
-  // chỉ tổ làm nó tối đi.
-  function settleFilm(intro) {
-    if (!intro || filmPhase !== 'outro') return;
-    intro.classList.add('is-settling');
   }
 
   function openSite(options = {}) {
@@ -619,7 +591,6 @@
       startMusic();
       return;
     }
-    settleFilm(intro);
 
     const kissDelay = options.kissDelay && !reduceMotion ? 340 : 0;
     const outro = reduceMotion ? 160 : (options.quick || filmPhase === 'outro' ? 520 : 1500);

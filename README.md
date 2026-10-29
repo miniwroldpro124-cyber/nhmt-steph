@@ -45,13 +45,13 @@ Clip mở màn tải trước; clip lặp và outro chỉ tải sau khi video b�
 
 Chuyển sang outro không dừng vòng lặp ngay: vòng lặp vẫn chạy tới khi outro vẽ xong khung đầu, nên máy yếu cũng không thấy khung hình đứng. Trang hồ sơ bị ẩn khỏi khâu vẽ (`body.film-live .stage`) trong suốt đoạn film và chỉ hiện lại lúc intro bắt đầu mờ: để nguyên thì bảng hồ sơ vẽ ngầm sau lớp video đục, đo được 14 khung/2s thay vì 98 khung/2s. Player nhạc được nạp từ clip mở màn (không phải lúc bấm) vì tạo iframe YouTube tốn ~700ms main thread — để tới cú chạm thì outro sẽ khựng.
 
-Ba chỗ từng làm khúc chuyển cảnh rớt khung, đều đã bỏ sau khi đo bằng Chrome DevTools trên Intel UHD 630 (khung hình 13.7ms khi chạy clip):
+Ba chỗ từng làm khúc chuyển cảnh rớt khung, đo bằng Chrome DevTools trên Intel UHD 630 (clip chạy 13,7ms/khung):
 
 - `filter:blur()` trong animation mở bảng: filter toàn bề mặt buộc vẽ lại cả bảng mỗi khung, bán kính nào cũng tốn như nhau. Bảng mở ra mất 42ms/khung (~24 khung/giây); bỏ blur còn 20ms (~50 khung/giây).
 - `backdrop-filter` của `.card`: bảng đặc gần kín nên lớp mờ phía sau gần như không thấy (chụp màn hình so hai bản lệch 0,37/255), nhưng canvas hạt phía sau chạy liên tục nên Chrome phải làm mờ lại toàn bảng mỗi khung — 32ms/khung so với 14ms.
-- Bóng đổ ba lớp của `.card`: quầng sáng 90px + bóng 120px phải vẽ lại theo bảng; đây là phần lớn chi phí còn lại sau khi trang đã mở xong.
+- Bóng đổ ba lớp của `.card`: quầng sáng 90px + bóng 120px phải vẽ lại theo bảng, chiếm phần lớn chi phí còn lại sau khi trang mở xong. Vẫn giữ vì là thứ tạo chiều sâu cho bảng, nhưng nếu cần thêm tốc độ thì đây là chỗ cắt tiếp theo.
 
-Đoạn cuối của video kết ở đỉnh flash trắng, và khung cuối là xám trung tính (~187,183,188) — phai thẳng xuống nền `#08050f` sẽ thấy một mảng xám lạnh lạc tông. Lớp `.intro__wash` phủ lên giây cuối, giữ độ chói của cú flash nhưng nhuộm thành quầng hồng pha lê → tím oải hương → tím than, cùng hướng với quầng sáng của `.bg__glow`, nên lúc intro mờ đi thì khung hình đã sẵn đúng tông nền hồ sơ.
+Đoạn cuối của video kết ở đỉnh flash trắng (khung cuối đo được xám trung tính ~187,183,188). Clip dừng ở đúng khung đó rồi intro mờ thẳng vào trang — không phủ thêm lớp màu nào, để cú flash giữ nguyên độ chói và màu gốc của video.
 
 Cả 3 clip được cân âm lượng về cùng mức (−15.6 LUFS) để chuyển cảnh không bị to/nhỏ đột ngột, và có fade ngắn ở mối nối.
 
