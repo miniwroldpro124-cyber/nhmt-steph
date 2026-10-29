@@ -210,7 +210,18 @@
     return Boolean((coarse && narrow) || (coarse && smallScreen) || (narrow && weakCpu));
   })();
 
-  const filmSrc = (part) => (wantsLightFilm && part?.srcMobile ? part.srcMobile : part?.src);
+  // Điện thoại cầm dọc: clip 9:16 để cover không cắt mất nhân vật.
+  // Máy tính / màn ngang giữ bản 16:9 (1080p hoặc 720p).
+  const isPortrait = () => Boolean(window.matchMedia?.('(orientation:portrait)')?.matches);
+  const wantsPortraitFilm = wantsLightFilm && isPortrait();
+
+  const filmSrc = (part) => {
+    if (wantsPortraitFilm && part?.srcPortrait) return part.srcPortrait;
+    if (wantsLightFilm && part?.srcMobile) return part.srcMobile;
+    return part?.src;
+  };
+  const filmPoster = (part) =>
+    (wantsPortraitFilm && part?.posterPortrait ? part.posterPortrait : part?.poster);
 
   function showFilmVideo(name) {
     Object.entries(filmVideos).forEach(([key, video]) => {
@@ -244,7 +255,8 @@
     const src = filmSrc(part);
     if (!video || !src || video.dataset.loaded) return video;
     video.dataset.loaded = '1';
-    if (part.poster) video.poster = part.poster;
+    const poster = filmPoster(part);
+    if (poster) video.poster = poster;
     video.preload = 'auto';
     video.src = src;
     video.load();
@@ -293,7 +305,12 @@
     });
     // Nạp lần lượt: ưu tiên 5s mở màn, clip lặp và outro tải sau để không giành băng thông.
     prepFilmVideo('open');
-    openVid.addEventListener('playing', () => prepFilmVideo('loop'), { once: true });
+    openVid.addEventListener('playing', () => {
+      prepFilmVideo('loop');
+      // Nạp player nhạc ngay từ clip mở màn (chứ không phải lúc bấm): tạo iframe YouTube
+      // tốn ~700ms main thread, nếu để tới cú chạm thì khung outro đứng im = khựng.
+      window.setTimeout(preloadMusic, 900);
+    }, { once: true });
     loopVid.addEventListener('canplay', () => prepFilmVideo('outro'), { once: true });
     openVid.addEventListener('ended', () => {
       if (filmPhase !== 'open' || siteOpened) return;
@@ -335,7 +352,16 @@
       const current = filmVideos[filmPhase];
       if (!current) return;
       if (document.hidden) current.pause();
-      else if (filmPhase !== 'outro') playFilmVideo(current);
+      // Outro cũng phải chạy tiếp: nếu để nó đứng thì khung hình treo tới lúc mở trang.
+      else playFilmVideo(current);
+    });
+
+    // Xoay máy: đổi giữa bản dọc và ngang, giữ nguyên vị trí đang xem.
+    window.addEventListener('orientationchange', () => {
+      if (siteOpened || !film.active) return;
+      const stillPortrait = isPortrait();
+      if (stillPortrait === wantsPortraitFilm) return;
+      location.reload();
     });
   }
   initIntroFilm();
@@ -391,14 +417,27 @@
     } else {
       video.addEventListener('playing', go, { once: true });
     }
-    window.setTimeout(go, 260);
+    // Dự phòng: trình duyệt không bắn frame callback. Chỉ bỏ qua khi clip còn trắng/đen,
+    // nếu không thì chuyển cảnh sẽ hiện một khung trống = nháy đen.
+    const start = performance.now();
+    const fallback = () => {
+      if (done) return;
+      const ready = video.readyState >= 2;
+      if (!ready && performance.now() - start < 1200) {
+        window.requestAnimationFrame(fallback);
+        return;
+      }
+      go();
+    };
+    window.setTimeout(fallback, 260);
   }
 
   function startFilmOutro() {
     if (!film.active || siteOpened || filmPhase === 'outro' || !filmVideos.outro) return false;
     filmPhase = 'outro';
     const outroVid = prepFilmVideo('outro');
-    pauseFilmVideos(outroVid);
+    // Không pause vòng lặp ở đây: nếu outro chưa kịp vẽ khung đầu (máy yếu, main thread
+    // đang bận), khung hình sẽ đứng im = khựng. Giữ vòng lặp chạy tới khi outro hiện.
     // Gọi play() ngay trong cú chạm: nếu chờ 'canplay' thì mất quyền user-gesture
     // và trình duyệt sẽ chặn tiếng của clip cuối.
     outroVid.muted = false;
@@ -407,7 +446,34 @@
       try { outroVid.currentTime = 0; } catch { /* best effort */ }
     }
     playFilmVideo(outroVid);
-    revealWhenPainted(outroVid, () => showFilmVideo('outro'));
+    // Watchdog: tab bị ẩn đúng lúc chạm, hoặc play() bị từ chối, đều làm outro đứng.
+    // Thử phát lại vài nhịp cho tới khi nó thật sự chạy; hết giờ thì vẫn mở trang
+    // để khách không bị kẹt ở màn mở đầu.
+    let outroGuardTimer = null;
+    let guardTries = 0;
+    const guardOutro = () => {
+      if (siteOpened) return;
+      if (!outroVid.paused) return;
+      if (guardTries >= 24) { openSite(); return; }
+      guardTries += 1;
+      playFilmVideo(outroVid);
+      outroGuardTimer = window.setTimeout(guardOutro, 250);
+    };
+    outroGuardTimer = window.setTimeout(guardOutro, 400);
+    const holdLoopUntilPainted = (deadline) => {
+      // Chỉ dừng vòng lặp khi outro thực sự đã chạy; nếu chưa (máy yếu, decoder còn bận)
+      // thì để vòng lặp chạy tiếp, tránh khung hình đứng.
+      if (siteOpened) return;
+      if (outroVid.paused || outroVid.currentTime <= 0) {
+        if (performance.now() < deadline) window.requestAnimationFrame(holdLoopUntilPainted);
+        return;
+      }
+      pauseFilmVideos(outroVid);
+    };
+    revealWhenPainted(outroVid, () => {
+      showFilmVideo('outro');
+      window.requestAnimationFrame(() => holdLoopUntilPainted(performance.now() + 3000));
+    });
     // Một số trình duyệt/thiết bị bỏ qua cờ muted ngay trong khung đầu của cú chạm:
     // thử bật tiếng lại vài nhịp, nếu vẫn không được thì clip chạy im lặng (hình vẫn đúng).
     [90, 240, 520].forEach((delay) => {
@@ -432,7 +498,11 @@
       }
     });
     clearTimeout(outroTimer);
-    outroTimer = window.setTimeout(openSite, 7000);
+    // Dự phòng khi 'ended' không bắn: chờ dài hơn thời lượng clip outro một nhịp an toàn.
+    const outroMs = Number.isFinite(outroVid.duration) && outroVid.duration > 0
+      ? outroVid.duration * 1000 + 1200
+      : 7500;
+    outroTimer = window.setTimeout(openSite, outroMs);
     return true;
   }
 

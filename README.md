@@ -31,23 +31,25 @@ Tất cả trong `assets/js/config.js`: TikTok, Facebook, video YouTube (`music.
 
 ## Màn mở đầu video
 
-Video được cắt sẵn thành 3 clip từ file gốc trong `assets/video/`, kèm poster `cyrene-*.jpg`. Mỗi clip có 2 bản: 1920×1080 60fps cho máy tính và 1280×720 cho điện thoại (`*-720.mp4`). Cắt sẵn để không phải tua — `python -m http.server` không hỗ trợ HTTP Range nên seek dễ bị phát lại từ đầu. Cấu hình trong `assets/js/config.js` → `introFilm` (`open`, `loop`, `outro`, mỗi clip có `src` + `srcMobile`).
+Video được cắt sẵn thành 3 clip từ file gốc trong `assets/video/`, kèm poster `cyrene-*.jpg`. Mỗi clip có 3 bản: 1920×1080 60fps cho máy tính (`src`), 1280×720 cho điện thoại nằm ngang (`srcMobile`), và 720×1280 dọc 9:16 cho điện thoại cầm dọc (`srcPortrait` + `posterPortrait`). Cắt sẵn để không phải tua — `python -m http.server` không hỗ trợ HTTP Range nên seek dễ bị phát lại từ đầu. Cấu hình trong `assets/js/config.js` → `introFilm`.
 
-| clip | đoạn gốc | 1080p | 720p |
-| --- | --- | --- | --- |
-| `cyrene-open` | 0-5s | 4.2MB | 1.9MB |
-| `cyrene-loop` | 10-30s | 9.4MB | 4.9MB |
-| `cyrene-outro` | 50.4-53.45s | 3.4MB | 1.5MB |
+| clip | đoạn gốc | 1080p | 720p | 9:16 |
+| --- | --- | --- | --- | --- |
+| `cyrene-open` | 0-5s | 4.2MB | 1.9MB | 2.4MB |
+| `cyrene-loop` | 10-30s | 9.4MB | 4.9MB | 4.6MB |
+| `cyrene-outro` | 50.4-53.45s, làm chậm 2x | 3.9MB | 2.0MB | 1.9MB |
 
-`srcMobile` được chọn khi `saveData`, mạng 2G/3G, hoặc màn hình cảm ứng nhỏ / máy yếu — máy tính vẫn giữ 1080p.
+`srcMobile` được chọn khi `saveData`, mạng 2G/3G, hoặc màn hình cảm ứng nhỏ / máy yếu — máy tính vẫn giữ 1080p. `srcPortrait` được chọn khi máy đó cầm dọc: clip 9:16 phủ kín màn hình nên không bị `object-fit: cover` cắt mất nhân vật (bản ngang trên màn dọc chỉ giữ lại khoảng 26% chiều rộng khung hình). Xoay máy khi còn ở màn mở đầu sẽ tải lại trang để đổi bản.
 
 Clip mở màn tải trước; clip lặp và outro chỉ tải sau khi video bắt đầu chạy để không nghẽn băng thông. Khi vòng lặp hiện, outro được nạp sẵn và phát nóng 1 khung (muted) để cú chạm bật tức thì. Khi video hiển thị, các lớp grain/blur/sheen nặng được tắt và canvas nền tạm dừng để giữ 60fps.
+
+Chuyển sang outro không dừng vòng lặp ngay: vòng lặp vẫn chạy tới khi outro vẽ xong khung đầu, nên máy yếu cũng không thấy khung hình đứng. Player nhạc được nạp từ clip mở màn (không phải lúc bấm) vì tạo iframe YouTube tốn ~700ms main thread — để tới cú chạm thì outro sẽ khựng. Trên điện thoại, bảng hồ sơ bỏ `backdrop-filter` và dùng animation hiện ra không `blur()` để trang mở mượt.
 
 Cả 3 clip được cân âm lượng về cùng mức (−15.6 LUFS) để chuyển cảnh không bị to/nhỏ đột ngột, và có fade ngắn ở mối nối.
 
 - Mở trang: phát 0-5s kèm âm thanh. Nếu trình duyệt chặn tự phát có tiếng thì video chạy im lặng, và mọi tương tác đầu tiên (chạm, phím, cuộn) tự bật lại tiếng cho clip đang chạy — vẫn chỉ cần một lần chạm để mở trang.
 - Khách chưa chạm: video lặp đoạn 10-30s.
-- Chạm/nhấn space: phát đoạn cuối 3.05s có tiếng, hiệu ứng hôn/tim, rồi mở trang và chạy nhạc nền.
+- Chạm/nhấn space: phát đoạn cuối ở tốc độ 0.5x (5.9s, tiếng giữ nguyên cao độ) có tiếng, hiệu ứng hôn/tim, rồi mở trang và chạy nhạc nền.
 
 Đặt `open.src: ""` để quay lại cảnh CSS (tim pha lê).
 
