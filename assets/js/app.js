@@ -229,13 +229,29 @@
     });
   }
 
+  // Tiếng luôn bật: nếu trình duyệt chặn tự phát (chưa có cú chạm) thì chỉ im lặng
+  // tạm thời để hình không đứng, và bật lại ngay khi có tương tác đầu tiên.
+  let soundUnlocked = false;
+
+  function forceSound(video) {
+    if (!video) return;
+    video.muted = false;
+    video.defaultMuted = false;
+    video.volume = 1;
+    const attempt = video.play();
+    if (attempt && typeof attempt.catch === 'function') {
+      attempt.catch(() => { /* vẫn bị chặn: giữ im lặng, sẽ thử lại ở cú chạm sau */ });
+    }
+  }
+
   function playFilmVideo(video) {
     if (!video) return;
     video.muted = false;
     video.volume = 1;
     const attempt = video.play();
     if (!attempt || typeof attempt.catch !== 'function') return;
-    // Bị chặn tự phát có tiếng: chạy im lặng để hình không đứng.
+    // Bị chặn tự phát có tiếng: chạy im lặng để hình không đứng,
+    // rồi cú chạm đầu tiên sẽ bật tiếng lại ngay.
     attempt.catch(() => {
       video.muted = true;
       const retry = video.play();
@@ -560,6 +576,22 @@
     if (siteOpened) return;
     if (!entered) enter();
   }
+
+  // Bất kỳ cú chạm/phím/scroll nào cũng bật tiếng cho clip đang chạy — kể cả khi khách
+  // không bấm nút "enter" mà chỉ chạm vào màn hình. Trình duyệt chỉ cho bật tiếng
+  // trong một tương tác thật, nên đây là chỗ duy nhất mở được khoá đó.
+  function unlockSound() {
+    if (soundUnlocked) return;
+    soundUnlocked = true;
+    const current = film.active ? filmVideos[filmPhase] : null;
+    if (!current || siteOpened) return;
+    if (current.muted) forceSound(current);
+  }
+
+  ['pointerdown', 'touchstart', 'keydown', 'wheel'].forEach((type) => {
+    window.addEventListener(type, unlockSound, { passive: true, once: false });
+  });
+  document.addEventListener('scroll', unlockSound, { passive: true });
 
   if (els.intro) {
     // pointerdown để chạm trên điện thoại mở ngay, không chờ 300ms của click.

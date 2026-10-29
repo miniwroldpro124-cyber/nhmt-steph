@@ -37,7 +37,7 @@ Video được cắt sẵn thành 3 clip từ file gốc trong `assets/video/`, 
 | --- | --- | --- | --- | --- |
 | `cyrene-open` | 0-5s | 4.2MB | 1.9MB | 2.4MB |
 | `cyrene-loop` | 10-30s | 9.4MB | 4.9MB | 4.6MB |
-| `cyrene-outro` | 50.4-53.45s, làm chậm 2x | 3.9MB | 2.0MB | 1.9MB |
+| `cyrene-outro` | 50.4-53.45s, làm chậm 1.74x | 3.8MB | 2.2MB | 2.0MB |
 
 `srcMobile` được chọn khi `saveData`, mạng 2G/3G, hoặc màn hình cảm ứng nhỏ / máy yếu — máy tính vẫn giữ 1080p. `srcPortrait` được chọn khi máy đó cầm dọc: clip 9:16 phủ kín màn hình nên không bị `object-fit: cover` cắt mất nhân vật (bản ngang trên màn dọc chỉ giữ lại khoảng 26% chiều rộng khung hình). Xoay máy khi còn ở màn mở đầu sẽ tải lại trang để đổi bản.
 
@@ -47,9 +47,9 @@ Chuyển sang outro không dừng vòng lặp ngay: vòng lặp vẫn chạy t�
 
 Cả 3 clip được cân âm lượng về cùng mức (−15.6 LUFS) để chuyển cảnh không bị to/nhỏ đột ngột, và có fade ngắn ở mối nối.
 
-- Mở trang: phát 0-5s kèm âm thanh. Nếu trình duyệt chặn tự phát có tiếng thì video chạy im lặng, và mọi tương tác đầu tiên (chạm, phím, cuộn) tự bật lại tiếng cho clip đang chạy — vẫn chỉ cần một lần chạm để mở trang.
+- Mở trang: phát 0-5s kèm âm thanh. Trình duyệt chỉ cho bật tiếng trong một tương tác thật, nên nếu chưa chạm thì clip chạy im lặng tạm thời; **mọi** tương tác đầu tiên (chạm vào bất kỳ đâu, phím, cuộn) bật tiếng ngay cho clip đang chạy — không cần bấm đúng nút enter. Với trình duyệt cho tự phát có tiếng thì clip có tiếng ngay từ đầu, không cần chạm.
 - Khách chưa chạm: video lặp đoạn 10-30s.
-- Chạm/nhấn space: phát đoạn cuối ở tốc độ 0.5x (5.9s, tiếng giữ nguyên cao độ) có tiếng, hiệu ứng hôn/tim, rồi mở trang và chạy nhạc nền.
+- Chạm/nhấn space: phát đoạn cuối ở tốc độ 0.575x (5.10s, tiếng giữ nguyên cao độ) có tiếng, hiệu ứng hôn/tim, rồi mở trang và chạy nhạc nền.
 
 Đặt `open.src: ""` để quay lại cảnh CSS (tim pha lê).
 
