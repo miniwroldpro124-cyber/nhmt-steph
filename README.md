@@ -49,7 +49,7 @@ Cả 3 clip được cân âm lượng về cùng mức (−15.6 LUFS) để chu
 
 - Mở trang: phát 0-5s kèm âm thanh. Trình duyệt chỉ cho bật tiếng trong một tương tác thật, nên nếu chưa chạm thì clip chạy im lặng tạm thời; **mọi** tương tác đầu tiên (chạm vào bất kỳ đâu, phím, cuộn) bật tiếng ngay cho clip đang chạy — không cần bấm đúng nút enter. Với trình duyệt cho tự phát có tiếng thì clip có tiếng ngay từ đầu, không cần chạm.
 - Khách chưa chạm: video lặp đoạn 10-30s.
-- Chạm/nhấn space: phát đoạn cuối ở tốc độ 0.575x (5.10s, tiếng giữ nguyên cao độ) có tiếng, hiệu ứng hôn/tim, rồi mở trang và chạy nhạc nền.
+- Chạm/nhấn space: phát đoạn cuối ở tốc độ 0.7604x (5.38s, tiếng giữ nguyên cao độ) có tiếng, hiệu ứng hôn/tim, rồi mở trang và chạy nhạc nền.
 
 Đặt `open.src: ""` để quay lại cảnh CSS (tim pha lê).
 

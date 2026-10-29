@@ -35,31 +35,33 @@ window.PROFILE = {
   },
 
   // Video mở màn: 5s đầu (0-5) → chờ ở vòng 10-30s → chạm thì phát đoạn cuối rồi mở trang.
-  // Outro làm chậm 1.74x (tốc độ 0.575, giữ cao độ tiếng) nên dài 5.10s.
+  // Outro: gốc 49.90-54.00s, chạy 0.7604x (giữ cao độ tiếng) nên dài 5.38s.
+  // Dựng bằng minterpolate để không lặp khung nào — bản cũ lặp 28% khung nên đoạn
+  // mở bị khựng như mất hình.
   // Ba clip cắt sẵn từ file gốc để không cần tua. Để open.src: "" để dùng cảnh CSS.
   // srcMobile: bản 720p cho điện thoại / mạng tiết kiệm dữ liệu.
   // srcPortrait: bản 9:16 cho điện thoại cầm dọc, để cover không cắt mất nhân vật.
   introFilm: {
     open: {
-      src: "assets/video/cyrene-open.mp4?v=18",
-      srcMobile: "assets/video/cyrene-open-720.mp4?v=18",
-      srcPortrait: "assets/video/cyrene-open-portrait.mp4?v=18",
-      poster: "assets/video/cyrene-open.jpg?v=18",
-      posterPortrait: "assets/video/cyrene-open-portrait.jpg?v=18"
+      src: "assets/video/cyrene-open.mp4?v=21",
+      srcMobile: "assets/video/cyrene-open-720.mp4?v=21",
+      srcPortrait: "assets/video/cyrene-open-portrait.mp4?v=21",
+      poster: "assets/video/cyrene-open.jpg?v=21",
+      posterPortrait: "assets/video/cyrene-open-portrait.jpg?v=21"
     },
     loop: {
-      src: "assets/video/cyrene-loop.mp4?v=18",
-      srcMobile: "assets/video/cyrene-loop-720.mp4?v=18",
-      srcPortrait: "assets/video/cyrene-loop-portrait.mp4?v=18",
-      poster: "assets/video/cyrene-loop.jpg?v=18",
-      posterPortrait: "assets/video/cyrene-loop-portrait.jpg?v=18"
+      src: "assets/video/cyrene-loop.mp4?v=21",
+      srcMobile: "assets/video/cyrene-loop-720.mp4?v=21",
+      srcPortrait: "assets/video/cyrene-loop-portrait.mp4?v=21",
+      poster: "assets/video/cyrene-loop.jpg?v=21",
+      posterPortrait: "assets/video/cyrene-loop-portrait.jpg?v=21"
     },
     outro: {
-      src: "assets/video/cyrene-outro.mp4?v=18",
-      srcMobile: "assets/video/cyrene-outro-720.mp4?v=18",
-      srcPortrait: "assets/video/cyrene-outro-portrait.mp4?v=18",
-      poster: "assets/video/cyrene-outro.jpg?v=18",
-      posterPortrait: "assets/video/cyrene-outro-portrait.jpg?v=18"
+      src: "assets/video/cyrene-outro.mp4?v=21",
+      srcMobile: "assets/video/cyrene-outro-720.mp4?v=21",
+      srcPortrait: "assets/video/cyrene-outro-portrait.mp4?v=21",
+      poster: "assets/video/cyrene-outro.jpg?v=21",
+      posterPortrait: "assets/video/cyrene-outro-portrait.jpg?v=21"
     }
   },
 

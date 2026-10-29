@@ -101,8 +101,12 @@ button,a,.intro,.stat,.link-row,.music__play{
 .intro__video{
   position:absolute;inset:0;width:100%;height:100%;
   object-fit:cover;object-position:var(--film-pos) center;
-  opacity:0;transition:opacity .3s ease;
+  /* Không fade: JS chỉ đổi lớp sau khi khung đầu đã vẽ, nên đổi tức thì là mượt nhất.
+     Fade 300ms sẽ phủ mờ đúng lúc clip bắt đầu chạy → trông như mất đoạn đầu. */
+  opacity:0;
 }
+/* Vào clip mới: hiện ngay (không fade) vì JS chỉ gắn .is-active sau khi khung đầu đã vẽ.
+   Nếu để transition, lớp fade sẽ phủ lên đúng lúc clip bắt đầu chạy → mất đoạn đầu. */
 .intro__video.is-active{opacity:1}
 
 /* Màn hình dọc: clip 9:16 phủ kín khung, không cắt mất nhân vật. */
