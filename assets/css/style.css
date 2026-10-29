@@ -11,8 +11,8 @@
   --rose-deep:#ff9ecb;
   --violet:#b7a6ff;
   --blue:#9fd8ff;
-  --card-1:rgba(35,20,60,.93);
-  --card-2:rgba(15,8,27,.96);
+  --card-1:rgba(35,20,60,.955);
+  --card-2:rgba(15,8,27,.975);
   --radius:30px;
   --banner:url("../img/banner.png");
   --ease:cubic-bezier(.22,.61,.36,1);
@@ -124,6 +124,27 @@ button,a,.intro,.stat,.link-row,.music__play{
 }
 .intro.is-film .intro__veil{opacity:1}
 .intro.is-film.is-playing .intro__veil{opacity:.8}
+
+/* Đoạn cuối kết ở đỉnh flash trắng — đo khung cuối được xám trung tính (~187,183,188).
+   Để nguyên thì cú phai sang nền #08050f đi ngang qua một mảng xám lạnh, lạc hẳn tông
+   tím/hồng của trang. Lớp này phủ lên giây cuối và gần như đặc (alpha .9 → 1) để khung
+   xám không hắt lên: quầng hồng pha lê ở giữa giữ độ chói của cú flash, lan ra tím
+   oải hương, rồi lắng về tím than #1a1030 ở rìa — cùng hướng với quầng sáng của
+   .bg__glow. Lúc intro mờ đi, khung hình đã sẵn đúng tông nền hồ sơ nên mối nối liền. */
+.intro__wash{
+  position:absolute;inset:0;z-index:3;pointer-events:none;opacity:0;
+  background:radial-gradient(84% 74% at 50% 44%,
+    rgba(255,238,250,.94) 0%,
+    rgba(250,214,248,.96) 24%,
+    rgba(214,166,235,.97) 48%,
+    rgba(139,98,193,.98) 70%,
+    rgba(63,38,96,.99) 88%,
+    #1a1030 100%);
+  transition:opacity .5s var(--ease);
+}
+.intro.is-settling .intro__wash{opacity:1}
+/* Đã bị lớp vá phủ kín: bỏ hẳn lớp video khỏi khâu vẽ để animation mở bảng có trọn GPU. */
+.intro.is-settling .intro__film{opacity:0;transition:opacity .3s ease .4s}
 .intro.is-film .intro__aurora,
 .intro.is-film .intro__aura,
 .intro.is-film .intro__ring{display:none}
@@ -136,6 +157,11 @@ button,a,.intro,.stat,.link-row,.music__play{
 .intro.is-film .intro__cosmos,
 .intro.is-film .intro__grain,
 .intro.is-film .intro__inner::before{display:none}
+/* Trang hồ sơ nằm sau lớp video đục hoàn toàn trong suốt đoạn outro, nên mọi thứ
+   nó vẽ đều vô hình — nhưng vẫn ngốn GPU: animation cardIn và bóng đổ lớn của .card
+   làm clip cuối rơi khung. Ẩn khỏi khâu vẽ cho tới lúc intro bắt đầu mờ đi; lúc đó
+   người xem mới thấy trang nên không ai nhận ra. */
+body.film-live .stage{visibility:hidden}
 .intro.is-film .intro__seal{animation:introRiseLite .9s var(--ease) .05s backwards}
 .intro.is-film .intro__name{animation:introRiseLite 1.1s var(--ease) .15s backwards}
 .intro.is-film .intro__enter{animation:introRiseLite 1s var(--ease) .3s backwards}
@@ -486,7 +512,7 @@ button,a,.intro,.stat,.link-row,.music__play{
   opacity:0;transform:translateY(10px);
   transition:opacity .9s var(--ease), transform .9s var(--ease);
 }
-body.entered .brand{opacity:1;transform:none;transition-delay:.75s}
+body.stage-in .brand{opacity:1;transform:none;transition-delay:.75s}
 .brand__word{
   position:relative;
   font-family:"Be Vietnam Pro",system-ui,sans-serif;
@@ -539,15 +565,17 @@ body.entered .brand{opacity:1;transform:none;transition-delay:.75s}
   width:min(660px,100%);
   border-radius:var(--radius);
   overflow:hidden;
+  /* Không dùng backdrop-filter: bảng này đặc gần kín (.93 → .96 alpha) nên lớp blur
+     phía sau gần như không thấy — chụp màn hình so hai bản chỉ lệch 0,37/255. Nhưng
+     nó đắt: canvas hạt phía sau chạy liên tục, mỗi khung Chrome phải làm mờ lại toàn
+     bảng, đo được 32ms/khung (31 khung/giây) so với 14ms (60 khung/giây) khi bỏ. */
   background:linear-gradient(178deg,var(--card-1) 0%,var(--card-2) 60%,#0f0820 100%);
-  backdrop-filter:blur(22px) saturate(1.15);
-  -webkit-backdrop-filter:blur(22px) saturate(1.15);
   box-shadow:
     0 50px 120px -34px rgba(8,3,22,.95),
     0 0 90px -28px rgba(146,109,255,.42),
     0 0 0 1px rgba(255,255,255,.035);
 }
-body.entered .card{animation:cardIn 1.35s var(--ease) .3s backwards}
+body.stage-in .card{animation:cardIn 1.35s var(--ease) .3s backwards}
 /* nghiêng bảng theo con trỏ (bật sau khi animation cardIn chạy xong) */
 .card.is-tilt{
   transform:rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg)) translateZ(0);
@@ -555,7 +583,7 @@ body.entered .card{animation:cardIn 1.35s var(--ease) .3s backwards}
   will-change:transform;
 }
 .card.is-tilt.is-tracking{transition:transform .09s linear}
-body.entered .brand.is-tilt{
+body.stage-in .brand.is-tilt{
   transform:translate3d(var(--brand-x,0px),var(--brand-y,0px),0);
   transition:transform .28s cubic-bezier(.22,.61,.36,1);
 }
@@ -1096,12 +1124,14 @@ body.entered .brand.is-tilt{
   62%{opacity:.9}
   100%{opacity:0;transform:translate(-50%,-50%) translate(var(--dx,0),var(--dy,-180px)) rotate(var(--rot,20deg)) scale(var(--sc,1))}
 }
+/* Không blur: đo trên máy này (UHD 630) bảng mở ra với blur(9px) rơi từ 60 xuống
+   ~23 khung/giây, còn bỏ blur thì giữ ~50 — mà bán kính nào cũng tốn như nhau, vì
+   filter toàn bề mặt buộc vẽ lại cả bảng mỗi khung. Chuyển động trượt + phóng nhẹ
+   vẫn đủ mềm nên bỏ hẳn blur ở mọi máy, không chỉ máy yếu. */
 @keyframes cardIn{
-  from{opacity:0;transform:translateY(34px) scale(.975);filter:blur(9px)}
-  to{opacity:1;transform:none;filter:blur(0)}
+  from{opacity:0;transform:translateY(26px) scale(.978)}
+  to{opacity:1;transform:none}
 }
-/* blur(9px) trên cả bảng là filter toàn bề mặt, mỗi khung phải vẽ lại toàn bộ
-   → điện thoại bị khựng lúc trang hiện ra. Bỏ blur trên máy yếu. */
 @keyframes cardInLite{
   from{opacity:0;transform:translateY(22px) scale(.985)}
   to{opacity:1;transform:none}
@@ -1147,12 +1177,12 @@ body.entered .brand.is-tilt{
     flex:1 1 auto;
     box-shadow:none;
   }
-  /* backdrop-filter + blur khi xuất hiện: tốn GPU nhất trên điện thoại */
+  /* Bảng đặc gần kín nên bỏ hẳn backdrop-filter (xem .card ở trên) — dòng dưới chỉ
+     còn để nền đặc 100% cho màn hình hẹp, nơi bảng tràn viền. */
   .card{
     background:linear-gradient(178deg,#23143c 0%,#0f081b 60%,#0f0820 100%);
-    backdrop-filter:none;-webkit-backdrop-filter:none;
   }
-  body.entered .card{animation:cardInLite 1s var(--ease) .2s backwards}
+  body.stage-in .card{animation:cardInLite 1s var(--ease) .2s backwards}
   .card::before{border-radius:0}
   .hero__banner{height:172px}
   .hero__body{padding:0 18px;margin-top:-44px;gap:13px;align-items:center}

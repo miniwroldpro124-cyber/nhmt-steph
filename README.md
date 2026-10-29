@@ -37,19 +37,27 @@ Video được cắt sẵn thành 3 clip từ file gốc trong `assets/video/`, 
 | --- | --- | --- | --- | --- |
 | `cyrene-open` | 0-5s | 4.2MB | 1.9MB | 2.4MB |
 | `cyrene-loop` | 10-30s | 9.4MB | 4.9MB | 4.6MB |
-| `cyrene-outro` | 50.4-53.45s, làm chậm 1.74x | 3.8MB | 2.2MB | 2.0MB |
+| `cyrene-outro` | 49.90-53.32s, làm chậm 1.32x | 3.3MB | 2.5MB | 2.4MB |
 
 `srcMobile` được chọn khi `saveData`, mạng 2G/3G, hoặc màn hình cảm ứng nhỏ / máy yếu — máy tính vẫn giữ 1080p. `srcPortrait` được chọn khi máy đó cầm dọc: clip 9:16 phủ kín màn hình nên không bị `object-fit: cover` cắt mất nhân vật (bản ngang trên màn dọc chỉ giữ lại khoảng 26% chiều rộng khung hình). Xoay máy khi còn ở màn mở đầu sẽ tải lại trang để đổi bản.
 
 Clip mở màn tải trước; clip lặp và outro chỉ tải sau khi video bắt đầu chạy để không nghẽn băng thông. Khi vòng lặp hiện, outro được nạp sẵn và phát nóng 1 khung (muted) để cú chạm bật tức thì. Khi video hiển thị, các lớp grain/blur/sheen nặng được tắt và canvas nền tạm dừng để giữ 60fps.
 
-Chuyển sang outro không dừng vòng lặp ngay: vòng lặp vẫn chạy tới khi outro vẽ xong khung đầu, nên máy yếu cũng không thấy khung hình đứng. Player nhạc được nạp từ clip mở màn (không phải lúc bấm) vì tạo iframe YouTube tốn ~700ms main thread — để tới cú chạm thì outro sẽ khựng. Trên điện thoại, bảng hồ sơ bỏ `backdrop-filter` và dùng animation hiện ra không `blur()` để trang mở mượt.
+Chuyển sang outro không dừng vòng lặp ngay: vòng lặp vẫn chạy tới khi outro vẽ xong khung đầu, nên máy yếu cũng không thấy khung hình đứng. Trang hồ sơ bị ẩn khỏi khâu vẽ (`body.film-live .stage`) trong suốt đoạn film và chỉ hiện lại lúc intro bắt đầu mờ: để nguyên thì bảng hồ sơ vẽ ngầm sau lớp video đục, đo được 14 khung/2s thay vì 98 khung/2s. Player nhạc được nạp từ clip mở màn (không phải lúc bấm) vì tạo iframe YouTube tốn ~700ms main thread — để tới cú chạm thì outro sẽ khựng.
+
+Ba chỗ từng làm khúc chuyển cảnh rớt khung, đều đã bỏ sau khi đo bằng Chrome DevTools trên Intel UHD 630 (khung hình 13.7ms khi chạy clip):
+
+- `filter:blur()` trong animation mở bảng: filter toàn bề mặt buộc vẽ lại cả bảng mỗi khung, bán kính nào cũng tốn như nhau. Bảng mở ra mất 42ms/khung (~24 khung/giây); bỏ blur còn 20ms (~50 khung/giây).
+- `backdrop-filter` của `.card`: bảng đặc gần kín nên lớp mờ phía sau gần như không thấy (chụp màn hình so hai bản lệch 0,37/255), nhưng canvas hạt phía sau chạy liên tục nên Chrome phải làm mờ lại toàn bảng mỗi khung — 32ms/khung so với 14ms.
+- Bóng đổ ba lớp của `.card`: quầng sáng 90px + bóng 120px phải vẽ lại theo bảng; đây là phần lớn chi phí còn lại sau khi trang đã mở xong.
+
+Đoạn cuối của video kết ở đỉnh flash trắng, và khung cuối là xám trung tính (~187,183,188) — phai thẳng xuống nền `#08050f` sẽ thấy một mảng xám lạnh lạc tông. Lớp `.intro__wash` phủ lên giây cuối, giữ độ chói của cú flash nhưng nhuộm thành quầng hồng pha lê → tím oải hương → tím than, cùng hướng với quầng sáng của `.bg__glow`, nên lúc intro mờ đi thì khung hình đã sẵn đúng tông nền hồ sơ.
 
 Cả 3 clip được cân âm lượng về cùng mức (−15.6 LUFS) để chuyển cảnh không bị to/nhỏ đột ngột, và có fade ngắn ở mối nối.
 
 - Mở trang: phát 0-5s kèm âm thanh. Trình duyệt chỉ cho bật tiếng trong một tương tác thật, nên nếu chưa chạm thì clip chạy im lặng tạm thời; **mọi** tương tác đầu tiên (chạm vào bất kỳ đâu, phím, cuộn) bật tiếng ngay cho clip đang chạy — không cần bấm đúng nút enter. Với trình duyệt cho tự phát có tiếng thì clip có tiếng ngay từ đầu, không cần chạm.
 - Khách chưa chạm: video lặp đoạn 10-30s.
-- Chạm/nhấn space: phát đoạn cuối ở tốc độ 0.7604x (5.38s, tiếng giữ nguyên cao độ) có tiếng, hiệu ứng hôn/tim, rồi mở trang và chạy nhạc nền.
+- Chạm/nhấn space: phát đoạn cuối ở tốc độ 0.7604x (4.49s, tiếng giữ nguyên cao độ) có tiếng, hiệu ứng hôn/tim, rồi mở trang và chạy nhạc nền.
 
 Đặt `open.src: ""` để quay lại cảnh CSS (tim pha lê).
 
